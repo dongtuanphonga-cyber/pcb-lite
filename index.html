@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Arduino Circuit Studio Ultimate - SVG Tinkercad</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #ffffff;
+            color: #0f172a;
+            overflow: hidden;
+        }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .canvas-grid {
+            background-color: #f8fafc;
+            background-image: 
+                linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+                linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        /* Chân cắm linh kiện chuẩn xác, rõ nét */
+        .pin {
+            width: 13px; height: 13px;
+            background: #1e293b;
+            border: 2px solid #f8fafc;
+            border-radius: 3px;
+            position: absolute;
+            z-index: 35;
+            cursor: pointer;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+            transition: transform 0.12s, background-color 0.12s;
+        }
+        .pin::after {
+            content: ''; position: absolute;
+            top: -7px; bottom: -7px; left: -7px; right: -7px;
+        }
+        .pin:hover, .pin.pin-active {
+            transform: scale(1.45);
+            background: #10b981;
+            border-color: #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #10b981;
+            z-index: 50;
+        }
+        .pin-tag {
+            position: absolute;
+            bottom: 16px; left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a; color: #fff;
+            font-size: 10px; font-weight: 700;
+            padding: 2px 5px; border-radius: 4px;
+            white-space: nowrap; pointer-events: none;
+            opacity: 0; transition: opacity 0.12s;
+            z-index: 60;
+        }
+        .pin:hover .pin-tag, .pin.pin-active .pin-tag, .show-all-pins .pin-tag {
+            opacity: 1;
+        }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .spin-anim { animation: spin 0.35s linear infinite; transform-origin: center; }
+        @keyframes smoke-anim {
+            0% { transform: translateY(0) scale(0.8); opacity: 0.9; }
+            100% { transform: translateY(-45px) scale(2.3); opacity: 0; }
+        }
+        .smoke-cloud {
+            position: absolute; width: 26px; height: 26px;
+            background: radial-gradient(circle, rgba(51,65,85,0.9) 0%, rgba(51,65,85,0) 70%);
+            border-radius: 50%; pointer-events: none;
+            animation: smoke-anim 1.2s infinite; z-index: 55;
+        }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col">
+
+    <!-- 1. THANH RIBBON TRÊN CÙNG -->
+    <header class="h-14 bg-white border-b border-slate-200 px-2.5 flex items-center justify-between shadow-sm z-40 shrink-0">
+        <div class="flex items-center space-x-1.5 overflow-x-auto py-1">
+            <div class="bg-blue-600 text-white px-2.5 py-1.5 rounded-lg font-extrabold text-xs sm:text-sm flex items-center space-x-1.5 shrink-0">
+                <i class="fa-solid fa-microchip"></i>
+                <span>TinkerSVG</span>
+            </div>
+
+            <button onclick="togglePinLabels()" id="btn-pins" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold shrink-0 flex items-center space-x-1">
+                <i class="fa-solid fa-tag text-blue-600"></i>
+                <span>Tên chân</span>
+            </button>
+
+            <button onclick="rotateSelected()" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold shrink-0 flex items-center space-x-1">
+                <i class="fa-solid fa-rotate-right text-indigo-600"></i>
+                <span>Xoay</span>
+            </button>
+
+            <button onclick="deleteSelected()" class="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold shrink-0 flex items-center space-x-1">
+                <i class="fa-solid fa-trash-can"></i>
+                <span>Xóa</span>
+            </button>
+
+            <!-- Màu dây -->
+            <div class="flex items-center space-x-1 bg-slate-100 px-2 py-1 rounded-lg shrink-0">
+                <button onclick="setWireColor('#ef4444')" class="w-4 h-4 rounded-full bg-red-500 ring-2 ring-blue-600 swatch" data-c="#ef4444"></button>
+                <button onclick="setWireColor('#0f172a')" class="w-4 h-4 rounded-full bg-slate-900 swatch" data-c="#0f172a"></button>
+                <button onclick="setWireColor('#10b981')" class="w-4 h-4 rounded-full bg-emerald-500 swatch" data-c="#10b981"></button>
+                <button onclick="setWireColor('#2563eb')" class="w-4 h-4 rounded-full bg-blue-600 swatch" data-c="#2563eb"></button>
+                <button onclick="setWireColor('#f59e0b')" class="w-4 h-4 rounded-full bg-amber-500 swatch" data-c="#f59e0b"></button>
+            </div>
+
+            <!-- Mạch mẫu -->
+            <select onchange="loadPreset(this.value)" class="bg-slate-100 border border-slate-300 text-slate-800 text-xs font-bold rounded-lg px-2 py-1.5 shrink-0">
+                <option value="safe">Mẫu 1: Mạch LED chuẩn</option>
+                <option value="burn">Mẫu 2: Cháy LED (Quá dòng)</option>
+                <option value="short">Mẫu 3: Chập 5V vào GND</option>
+                <option value="full">Mẫu 4: LCD + Siêu âm + Servo</option>
+            </select>
+        </div>
+
+        <div class="flex items-center space-x-1.5 shrink-0 ml-1">
+            <button onclick="toggleCodeDrawer()" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold flex items-center space-x-1 border border-slate-300">
+                <i class="fa-solid fa-code text-teal-600"></i>
+                <span class="hidden sm:inline">Code IDE</span>
+            </button>
+            <button id="btn-sim" onclick="toggleSim()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center space-x-1 shadow-sm">
+                <i class="fa-solid fa-play" id="sim-icon"></i>
+                <span id="sim-text">Chạy</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- 2. KHÔNG GIAN CHÍNH -->
+    <div class="flex-1 flex relative overflow-hidden">
+
+        <!-- KHO LINH KIỆN CÓ NÚT MŨI TÊN GẠT TAB & ĐÓNG MỞ -->
+        <aside id="parts-panel" class="w-80 sm:w-88 bg-white border-r border-slate-200 flex flex-col z-30 transition-all duration-300 relative shrink-0">
+            
+            <!-- Nút Mũi Tên Gạt Đóng/Mở toàn bộ Khung Linh Kiện -->
+            <button onclick="togglePartsPanel()" id="panel-arrow-btn"
+                    class="absolute -right-7 top-1/2 -translate-y-1/2 w-7 h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-r-xl shadow-lg flex items-center justify-center z-50 cursor-pointer"
+                    title="Gạt đóng/mở tab linh kiện">
+                <i id="panel-arrow-icon" class="fa-solid fa-chevron-left text-sm"></i>
+            </button>
+
+            <!-- Thanh điều hướng Tab Danh Mục bằng Mũi Tên Trái / Phải -->
+            <div class="p-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <button onclick="cycleCategory(-1)" class="w-8 h-8 rounded-lg bg-white border border-slate-300 hover:bg-blue-50 text-slate-700 flex items-center justify-center shadow-sm active:scale-95" title="Tab trước">
+                    <i class="fa-solid fa-chevron-left text-xs"></i>
+                </button>
+                <div class="text-center flex-1 px-2">
+                    <div id="cat-title" class="font-extrabold text-xs sm:text-sm text-blue-700 uppercase tracking-wide">1/6. Tất cả linh kiện (32)</div>
+                    <div class="text-[10px] text-slate-500 font-medium">Bấm vào linh kiện để lấy ra bàn</div>
+                </div>
+                <button onclick="cycleCategory(1)" class="w-8 h-8 rounded-lg bg-white border border-slate-300 hover:bg-blue-50 text-slate-700 flex items-center justify-center shadow-sm active:scale-95" title="Tab tiếp theo">
+                    <i class="fa-solid fa-chevron-right text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Ô tìm kiếm nhanh -->
+            <div class="p-2 border-b border-slate-100">
+                <input type="text" id="search-box" oninput="renderCatalog()" placeholder="🔍 Tìm nhanh tên linh kiện..." 
+                       class="w-full px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:bg-white focus:border-blue-500">
+            </div>
+
+            <!-- Danh sách linh kiện (Bấm 1 chạm là lấy ra ngay) -->
+            <div id="catalog-grid" class="flex-1 p-2 overflow-y-auto grid grid-cols-2 gap-2 content-start"></div>
+        </aside>
+
+        <!-- BÀN VẼ MẠCH ĐIỆN (KHÔNG DÙNG KÉO THẢ - DÙNG NÚT ĐIỀU HƯỚNG & CHẠM ĐẶT) -->
+        <main id="workspace" class="flex-1 canvas-grid relative overflow-auto" onclick="onWorkspaceClick(event)">
+            
+            <!-- Thông báo Toast khi lấy linh kiện -->
+            <div id="toast-msg" class="hidden fixed top-16 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 rounded-full text-xs font-bold shadow-xl z-50 flex items-center space-x-2">
+                <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                <span id="toast-text">Đã thêm linh kiện!</span>
+            </div>
+
+            <!-- BẢNG ĐIỀU KHIỂN DI CHUYỂN LINH KIỆN (THAY THẾ HOÀN TOÀN KÉO THẢ) -->
+            <div id="move-pad" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur border-2 border-blue-500 rounded-2xl shadow-2xl p-2.5 z-40 flex items-center space-x-3">
+                <!-- Thông tin linh kiện đang chọn -->
+                <div class="pr-2 border-r border-slate-200 max-w-[150px]">
+                    <div class="text-[10px] font-bold text-blue-600 uppercase">Đang chọn:</div>
+                    <div id="sel-comp-name" class="font-extrabold text-xs text-slate-900 truncate">Arduino Uno</div>
+                    <div id="sel-comp-props" class="mt-1"></div>
+                    <button onclick="enableTapToPlace()" id="btn-tap-move" class="mt-1.5 w-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-400 rounded px-2 py-1 text-[10px] font-extrabold">
+                        <i class="fa-solid fa-location-crosshairs mr-1"></i>Chạm bàn để đặt
+                    </button>
+                </div>
+
+                <!-- Cụm phím Mũi tên Lên/Xuống/Trái/Phải -->
+                <div class="grid grid-cols-3 gap-1 w-28 h-28">
+                    <div></div>
+                    <button onclick="nudgeSelected(0, -20)" class="bg-slate-100 hover:bg-blue-600 hover:text-white active:scale-90 rounded-lg font-bold flex items-center justify-center border border-slate-300 shadow-sm"><i class="fa-solid fa-arrow-up"></i></button>
+                    <div></div>
+                    <button onclick="nudgeSelected(-20, 0)" class="bg-slate-100 hover:bg-blue-600 hover:text-white active:scale-90 rounded-lg font-bold flex items-center justify-center border border-slate-300 shadow-sm"><i class="fa-solid fa-arrow-left"></i></button>
+                    <button onclick="rotateSelected()" class="bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-bold flex items-center justify-center border border-blue-300 text-xs" title="Xoay"><i class="fa-solid fa-rotate"></i></button>
+                    <button onclick="nudgeSelected(20, 0)" class="bg-slate-100 hover:bg-blue-600 hover:text-white active:scale-90 rounded-lg font-bold flex items-center justify-center border border-slate-300 shadow-sm"><i class="fa-solid fa-arrow-right"></i></button>
+                    <div></div>
+                    <button onclick="nudgeSelected(0, 20)" class="bg-slate-100 hover:bg-blue-600 hover:text-white active:scale-90 rounded-lg font-bold flex items-center justify-center border border-slate-300 shadow-sm"><i class="fa-solid fa-arrow-down"></i></button>
+                    <div></div>
+                </div>
+            </div>
+
+            <!-- Nút Thu Phóng góc phải trên -->
+            <div class="fixed top-16 right-4 flex bg-white border border-slate-300 rounded-xl shadow-md overflow-hidden z-30">
+                <button onclick="setZoom(-0.15)" class="px-2.5 py-1.5 hover:bg-slate-100 text-xs font-bold"><i class="fa-solid fa-minus"></i></button>
+                <span id="zoom-val" class="px-2 py-1.5 text-xs font-extrabold border-x border-slate-200">100%</span>
+                <button onclick="setZoom(0.15)" class="px-2.5 py-1.5 hover:bg-slate-100 text-xs font-bold"><i class="fa-solid fa-plus"></i></button>
+            </div>
+
+            <!-- Vùng chứa mạch SVG & Linh kiện -->
+            <div id="board-stage" class="w-[2200px] h-[1600px] relative origin-top-left transition-transform duration-75">
+                <svg id="wire-svg" class="absolute inset-0 w-full h-full pointer-events-none z-20"></svg>
+                <div id="comp-container" class="absolute inset-0 w-full h-full z-10"></div>
+            </div>
+
+            <!-- Modal giải thích lỗi cháy nổ -->
+            <div id="err-modal" class="hidden fixed top-20 left-1/2 -translate-x-1/2 w-[92%] max-w-md bg-white border-2 border-red-600 rounded-2xl shadow-2xl p-4 z-50">
+                <div class="flex items-center justify-between text-red-600 font-extrabold text-base">
+                    <span><i class="fa-solid fa-triangle-exclamation mr-1.5"></i><span id="err-title">CẢNH BÁO CHÁY HỎNG!</span></span>
+                    <button onclick="document.getElementById('err-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-800"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <p id="err-desc" class="text-xs sm:text-sm text-slate-700 mt-2 font-medium leading-relaxed"></p>
+                <div id="err-fix" class="mt-3 p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-xl text-xs font-bold"></div>
+            </div>
+        </main>
+
+        <!-- KHUNG CODE ARDUINO IDE -->
+        <section id="code-drawer" class="hidden w-full sm:w-96 bg-white border-l border-slate-200 flex-col z-40 shrink-0">
+            <div class="p-2.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
+                <span class="font-extrabold text-xs text-slate-800"><i class="fa-solid fa-code text-teal-600 mr-1"></i>ARDUINO IDE (C++)</span>
+                <button onclick="toggleCodeDrawer()" class="text-slate-500 hover:text-red-600 font-bold text-xs px-2 py-0.5 rounded border border-slate-300 bg-white">Đóng</button>
+            </div>
+            <textarea id="code-editor" spellcheck="false" class="mono flex-1 p-3 text-xs bg-white text-slate-900 focus:outline-none resize-none leading-5">void setup() {
+  pinMode(13, OUTPUT);
+  Serial.begin(9600);
+  Serial.println("Mach da khoi dong!");
+  lcd.print("TinkerSVG Ready!");
+}
+
+void loop() {
+  digitalWrite(13, HIGH);
+  servo.write(135);
+  Serial.println("Pin 13: HIGH (5V)");
+  delay(1000);
+
+  digitalWrite(13, LOW);
+  servo.write(45);
+  Serial.println("Pin 13: LOW (0V)");
+  delay(1000);
+}</textarea>
+            <div class="h-40 bg-slate-900 text-emerald-400 flex flex-col">
+                <div class="px-3 py-1 bg-slate-800 text-[11px] font-bold text-slate-300 flex justify-between">
+                    <span>Serial Monitor (9600)</span>
+                    <button onclick="document.getElementById('serial-box').innerHTML=''" class="text-xs text-slate-400">Xóa</button>
+                </div>
+                <div id="serial-box" class="flex-1 p-2 mono text-xs overflow-y-auto space-y-1"></div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // ==================== DANH MỤC 6 TAB & 32 LINH KIỆN SVG CHI TIẾT ====================
+        const CATEGORIES = [
+            { id: 'all',    title: '1/6. Tất cả linh kiện (32)' },
+            { id: 'mcu',    title: '2/6. Bo mạch & Vi điều khiển' },
+            { id: 'output', title: '3/6. Đèn LED, Màn hình & Motor' },
+            { id: 'sensor', title: '4/6. Cảm biến (Sensors)' },
+            { id: 'basic',  title: '5/6. Điện trở, Tụ, Nút, IC' },
+            { id: 'power',  title: '6/6. Nguồn Pin & Cấp nguồn' }
+        ];
+        let catIndex = 0;
+
+        const PARTS = {
+            // --- NHÓM 1: VI ĐIỀU KHIỂN ---
+            arduino_uno: {
+                name: 'Arduino Uno R3', cat: 'mcu', w: 260, h: 185,
+                pins: [
+                    // Hàng chân trên (Digital 0 -> 13, GND, AREF)
+                    { id: 'AREF', label: 'AREF', x: 52, y: 10 },
+                    { id: 'GND1', label: 'GND',  x: 66, y: 10 },
+                    { id: '13',   label: 'D13',  x: 80, y: 10 },
+                    { id: '12',   label: 'D12',  x: 94, y: 10 },
+                    { id: '11',   label: 'D11~', x: 108, y: 10 },
+                    { id: '10',   label: 'D10~', x: 122, y: 10 },
+                    { id: '9',    label: 'D9~',  x: 136, y: 10 },
+                    { id: '8',    label: 'D8',   x: 150, y: 10 },
+                    { id: '7',    label: 'D7',   x: 168, y: 10 },
+                    { id: '6',    label: 'D6~',  x: 182, y: 10 },
+                    { id: '5',    label: 'D5~',  x: 196, y: 10 },
+                    { id: '4',    label: 'D4',   x: 210, y: 10 },
+                    { id: '3',    label: 'D3~',  x: 224, y: 10 },
+                    { id: '2',    label: 'D2',   x: 238, y: 10 },
+                    // Hàng chân dưới (Power & Analog A0-A5)
+                    { id: '3V3',  label: '3.3V', x: 65, y: 175 },
+                    { id: '5V',   label: '5V',   x: 81, y: 175 },
+                    { id: 'GND2', label: 'GND',  x: 97, y: 175 },
+                    { id: 'GND3', label: 'GND',  x: 113, y: 175 },
+                    { id: 'VIN',  label: 'VIN',  x: 129, y: 175 },
+                    { id: 'A0',   label: 'A0',   x: 155, y: 175 },
+                    { id: 'A1',   label: 'A1',   x: 171, y: 175 },
+                    { id: 'A2',   label: 'A2',   x: 187, y: 175 },
+                    { id: 'A3',   label: 'A3',   x: 203, y: 175 },
+                    { id: 'A4',   label: 'A4 (SDA)', x: 219, y: 175 },
+                    { id: 'A5',   label: 'A5 (SCL)', x: 235, y: 175 }
+                ]
+            },
+            arduino_nano: {
+                name: 'Arduino Nano', cat: 'mcu', w: 180, h: 85,
+                pins: [
+                    { id: '13', label: 'D13', x: 25, y: 8 }, { id: '12', label: 'D12', x: 45, y: 8 },
+                    { id: '11', label: 'D11', x: 65, y: 8 }, { id: '10', label: 'D10', x: 85, y: 8 },
+                    { id: '9',  label: 'D9',  x: 105, y: 8 }, { id: '8',  label: 'D8',  x: 125, y: 8 },
+                    { id: 'GND1',label: 'GND', x: 145, y: 8 },
+                    { id: '5V', label: '5V',  x: 35, y: 77 }, { id: '3V3', label: '3.3V', x: 60, y: 77 },
+                    { id: 'GND2',label: 'GND', x: 85, y: 77 }, { id: 'A0', label: 'A0', x: 115, y: 77 },
+                    { id: 'A1', label: 'A1',  x: 140, y: 77 }
+                ]
+            },
+            esp32: {
+                name: 'ESP32 WiFi IoT', cat: 'mcu', w: 195, h: 105,
+                pins: [
+                    { id: '3V3', label: '3.3V', x: 25, y: 9 }, { id: 'GND1', label: 'GND', x: 50, y: 9 },
+                    { id: '13', label: 'GPIO13', x: 80, y: 9 }, { id: '12', label: 'GPIO12', x: 110, y: 9 },
+                    { id: '9', label: 'GPIO14', x: 140, y: 9 },
+                    { id: '5V', label: 'VIN 5V', x: 30, y: 96 }, { id: 'GND2', label: 'GND', x: 65, y: 96 },
+                    { id: 'A0', label: 'GPIO34', x: 105, y: 96 }, { id: 'A1', label: 'GPIO35', x: 145, y: 96 }
+                ]
+            },
+            breadboard: {
+                name: 'Breadboard 400 lỗ', cat: 'mcu', w: 260, h: 140,
+                pins: [
+                    { id: 'P1', label: '+ Rail', x: 25, y: 14, g: 'POS' }, { id: 'P2', label: '+ Rail', x: 85, y: 14, g: 'POS' },
+                    { id: 'P3', label: '+ Rail', x: 155, y: 14, g: 'POS' }, { id: 'P4', label: '+ Rail', x: 225, y: 14, g: 'POS' },
+                    { id: 'N1', label: '- Rail', x: 25, y: 126, g: 'NEG' }, { id: 'N2', label: '- Rail', x: 85, y: 126, g: 'NEG' },
+                    { id: 'N3', label: '- Rail', x: 155, y: 126, g: 'NEG' }, { id: 'N4', label: '- Rail', x: 225, y: 126, g: 'NEG' },
+                    ...[1,2,3,4,5,6,7,8].flatMap((c, i) => [
+                        { id: `C${c}A`, label: `Hàng ${c}A`, x: 26 + i*29, y: 45, g: `C${c}` },
+                        { id: `C${c}B`, label: `Hàng ${c}B`, x: 26 + i*29, y: 70, g: `C${c}` },
+                        { id: `C${c}C`, label: `Hàng ${c}C`, x: 26 + i*29, y: 95, g: `C${c}` }
+                    ])
+                ]
+            },
+
+            // --- NHÓM 2: ĐÈN, MÀN HÌNH, ĐỘNG CƠ ---
+            led: {
+                name: 'Đèn LED 5mm', cat: 'output', w: 65, h: 90, props: { color: 'red' },
+                pins: [ { id: 'A', label: 'Anode (+)', x: 21, y: 82 }, { id: 'C', label: 'Cathode (-)', x: 44, y: 82 } ]
+            },
+            rgb_led: {
+                name: 'LED RGB 4 Chân', cat: 'output', w: 90, h: 95,
+                pins: [
+                    { id: 'R', label: 'Red (+)', x: 14, y: 86 }, { id: 'C', label: 'Cathode (-)', x: 34, y: 86 },
+                    { id: 'G', label: 'Green (+)', x: 54, y: 86 }, { id: 'B', label: 'Blue (+)', x: 74, y: 86 }
+                ]
+            },
+            neopixel: {
+                name: 'Vòng LED NeoPixel', cat: 'output', w: 105, h: 105,
+                pins: [
+                    { id: 'VCC', label: 'VCC 5V', x: 22, y: 96 }, { id: 'IN', label: 'Data IN', x: 52, y: 96 }, { id: 'GND', label: 'GND', x: 82, y: 96 }
+                ]
+            },
+            lcd16x2: {
+                name: 'Màn hình LCD 16x2', cat: 'output', w: 220, h: 110, props: { text: 'TinkerSVG Ready!' },
+                pins: [
+                    { id: 'GND', label: 'VSS (GND)', x: 25, y: 100 }, { id: 'VCC', label: 'VDD (5V)', x: 55, y: 100 },
+                    { id: 'RS',  label: 'RS', x: 85, y: 100 }, { id: 'E', label: 'Enable', x: 115, y: 100 },
+                    { id: 'SDA', label: 'SDA / D4', x: 150, y: 100 }, { id: 'SCL', label: 'SCL / D5', x: 185, y: 100 }
+                ]
+            },
+            oled: {
+                name: 'Màn hình OLED I2C', cat: 'output', w: 115, h: 95, props: { text: 'OLED 128x64' },
+                pins: [
+                    { id: 'GND', label: 'GND', x: 20, y: 10 }, { id: 'VCC', label: 'VCC 3.3-5V', x: 45, y: 10 },
+                    { id: 'SCL', label: 'SCL', x: 70, y: 10 }, { id: 'SDA', label: 'SDA', x: 95, y: 10 }
+                ]
+            },
+            seg7: {
+                name: 'LED 7 Đoạn', cat: 'output', w: 85, h: 110,
+                pins: [
+                    { id: 'G', label: 'Seg G', x: 15, y: 8 }, { id: 'F', label: 'Seg F', x: 32, y: 8 },
+                    { id: 'VCC', label: 'COM (+)', x: 50, y: 8 }, { id: 'A', label: 'Seg A', x: 68, y: 8 },
+                    { id: 'E', label: 'Seg E', x: 15, y: 102 }, { id: 'D', label: 'Seg D', x: 32, y: 102 },
+                    { id: 'C', label: 'COM GND (-)', x: 50, y: 102 }, { id: 'DP', label: 'Dot', x: 68, y: 102 }
+                ]
+            },
+            servo: {
+                name: 'Động cơ Servo SG90', cat: 'output', w: 120, h: 100, props: { angle: 90 },
+                pins: [
+                    { id: 'SIG', label: 'PWM (Cam)', x: 28, y: 92 }, { id: 'VCC', label: 'VCC 5V (Đỏ)', x: 60, y: 92 }, { id: 'GND', label: 'GND (Nâu)', x: 92, y: 92 }
+                ]
+            },
+            dc_motor: {
+                name: 'Động cơ DC Vàng', cat: 'output', w: 110, h: 95,
+                pins: [ { id: 'T1', label: 'Cực Dương (+)', x: 30, y: 86 }, { id: 'T2', label: 'Cực Âm (-)', x: 80, y: 86 } ]
+            },
+            buzzer: {
+                name: 'Còi Buzzer Piezo', cat: 'output', w: 80, h: 85,
+                pins: [ { id: 'A', label: 'Dương (+)', x: 24, y: 76 }, { id: 'C', label: 'Âm (-)', x: 56, y: 76 } ]
+            },
+            relay: {
+                name: 'Module Rơ-le 5V', cat: 'output', w: 110, h: 90,
+                pins: [
+                    { id: 'VCC', label: 'VCC 5V', x: 22, y: 82 }, { id: 'GND', label: 'GND', x: 55, y: 82 }, { id: 'IN', label: 'IN (Kích)', x: 88, y: 82 }
+                ]
+            },
+
+            // --- NHÓM 3: CẢM BIẾN (SENSORS) ---
+            ultrasonic: {
+                name: 'Siêu âm HC-SR04', cat: 'sensor', w: 155, h: 90,
+                pins: [
+                    { id: 'VCC', label: 'VCC (5V)', x: 28, y: 82 }, { id: 'TRIG', label: 'Trig', x: 60, y: 82 },
+                    { id: 'ECHO', label: 'Echo', x: 92, y: 82 }, { id: 'GND', label: 'GND', x: 124, y: 82 }
+                ]
+            },
+            pir: {
+                name: 'Cảm biến PIR HC-SR501', cat: 'sensor', w: 105, h: 95,
+                pins: [
+                    { id: 'VCC', label: 'VCC 5V', x: 24, y: 86 }, { id: 'OUT', label: 'OUT', x: 52, y: 86 }, { id: 'GND', label: 'GND', x: 80, y: 86 }
+                ]
+            },
+            temp_sensor: {
+                name: 'Cảm biến Nhiệt TMP36', cat: 'sensor', w: 80, h: 85,
+                pins: [
+                    { id: 'VCC', label: 'VCC (2.7-5.5V)', x: 16, y: 76 }, { id: 'VOUT', label: 'Vout (Analog)', x: 40, y: 76 }, { id: 'GND', label: 'GND', x: 64, y: 76 }
+                ]
+            },
+            ldr: {
+                name: 'Quang trở (LDR)', cat: 'sensor', w: 75, h: 80, props: { resistance: 400 },
+                pins: [ { id: 'T1', label: 'Chân 1', x: 20, y: 72 }, { id: 'T2', label: 'Chân 2', x: 55, y: 72 } ]
+            },
+            gas_mq2: {
+                name: 'Cảm biến Khí Gas MQ2', cat: 'sensor', w: 100, h: 95,
+                pins: [
+                    { id: 'VCC', label: 'VCC 5V', x: 18, y: 86 }, { id: 'GND', label: 'GND', x: 40, y: 86 },
+                    { id: 'DO', label: 'D0', x: 62, y: 86 }, { id: 'AO', label: 'A0', x: 84, y: 86 }
+                ]
+            },
+            soil: {
+                name: 'Cảm biến Độ ẩm đất', cat: 'sensor', w: 90, h: 110,
+                pins: [
+                    { id: 'VCC', label: 'VCC 5V', x: 20, y: 10 }, { id: 'GND', label: 'GND', x: 45, y: 10 }, { id: 'AO', label: 'Analog Out', x: 70, y: 10 }
+                ]
+            },
+            ir_sensor: {
+                name: 'Thu Hồng Ngoại IR', cat: 'sensor', w: 80, h: 85,
+                pins: [
+                    { id: 'OUT', label: 'OUT', x: 16, y: 76 }, { id: 'GND', label: 'GND', x: 40, y: 76 }, { id: 'VCC', label: 'VCC 5V', x: 64, y: 76 }
+                ]
+            },
+            keypad: {
+                name: 'Bàn phím 4x4 Keypad', cat: 'sensor', w: 130, h: 145,
+                pins: [
+                    { id: 'R1', label: 'R1', x: 16, y: 136 }, { id: 'R2', label: 'R2', x: 30, y: 136 },
+                    { id: 'R3', label: 'R3', x: 44, y: 136 }, { id: 'R4', label: 'R4', x: 58, y: 136 },
+                    { id: 'C1', label: 'C1', x: 72, y: 136 }, { id: 'C2', label: 'C2', x: 86, y: 136 },
+                    { id: 'C3', label: 'C3', x: 100, y: 136 }, { id: 'C4', label: 'C4', x: 114, y: 136 }
+                ]
+            },
+
+            // --- NHÓM 4: ĐIỆN TRỞ, TỤ, NÚT NHẤN, BÁN DẪN ---
+            resistor: {
+                name: 'Điện trở 4 Vòng Màu', cat: 'basic', w: 110, h: 46, props: { resistance: 220 },
+                pins: [ { id: 'T1', label: 'Chân 1', x: 8, y: 23 }, { id: 'T2', label: 'Chân 2', x: 102, y: 23 } ]
+            },
+            potentiometer: {
+                name: 'Biến trở Xoay (10kΩ)', cat: 'basic', w: 85, h: 90, props: { resistance: 220 },
+                pins: [
+                    { id: 'T1', label: 'Chân 1', x: 18, y: 82 }, { id: 'W', label: 'Chân Giữa (Wiper)', x: 42, y: 82 }, { id: 'T2', label: 'Chân 2', x: 66, y: 82 }
+                ]
+            },
+            button: {
+                name: 'Nút nhấn 4 Chân', cat: 'basic', w: 70, h: 70, props: { pressed: false },
+                pins: [
+                    { id: '1A', label: '1A', x: 12, y: 12 }, { id: '2A', label: '2A', x: 58, y: 12 },
+                    { id: '1B', label: '1B', x: 12, y: 58 }, { id: '2B', label: '2B', x: 58, y: 58 }
+                ]
+            },
+            slide_switch: {
+                name: 'Công tắc trượt 3 chân', cat: 'basic', w: 80, h: 60, props: { on: true },
+                pins: [
+                    { id: '1A', label: 'Chân 1', x: 16, y: 52 }, { id: '2A', label: 'Chân Chung', x: 40, y: 52 }, { id: '3A', label: 'Chân 2', x: 64, y: 52 }
+                ]
+            },
+            capacitor: {
+                name: 'Tụ Hóa Phân Cực', cat: 'basic', w: 70, h: 90,
+                pins: [ { id: 'A', label: 'Dương (+)', x: 22, y: 82 }, { id: 'C', label: 'Âm (-)', x: 48, y: 82 } ]
+            },
+            diode: {
+                name: 'Diode 1N4007', cat: 'basic', w: 100, h: 42,
+                pins: [ { id: 'A', label: 'Anode (+)', x: 8, y: 21 }, { id: 'C', label: 'Cathode (-)', x: 92, y: 21 } ]
+            },
+            transistor: {
+                name: 'Transistor NPN (BJT)', cat: 'basic', w: 80, h: 85,
+                pins: [
+                    { id: 'E', label: 'Emitter (E)', x: 16, y: 76 }, { id: 'B', label: 'Base (B)', x: 40, y: 76 }, { id: 'C', label: 'Collector (C)', x: 64, y: 76 }
+                ]
+            },
+            ic_l293d: {
+                name: 'IC Cầu H L293D / 555', cat: 'basic', w: 120, h: 75,
+                pins: [
+                    { id: '1', label: 'Pin 1 (EN)', x: 20, y: 67 }, { id: '2', label: 'Pin 2 (IN1)', x: 45, y: 67 },
+                    { id: '3', label: 'Pin 3 (OUT1)', x: 70, y: 67 }, { id: 'GND', label: 'GND', x: 95, y: 67 },
+                    { id: 'VCC', label: 'VCC 5V', x: 20, y: 8 }, { id: 'OUT2', label: 'OUT2', x: 95, y: 8 }
+                ]
+            },
+
+            // --- NHÓM 5: NGUỒN ĐIỆN ---
+            battery9v: {
+                name: 'Pin Vuông 9V Duracell', cat: 'power', w: 88, h: 115, props: { voltage: 9 },
+                pins: [ { id: 'POS', label: 'Cực Dương (+9V)', x: 28, y: 8 }, { id: 'NEG', label: 'Cực Âm (-)', x: 60, y: 8 } ]
+            },
+            battery_aa: {
+                name: 'Hộp 2 Pin AA (3V)', cat: 'power', w: 95, h: 110, props: { voltage: 3 },
+                pins: [ { id: 'POS', label: 'Dương (+3V)', x: 30, y: 10 }, { id: 'NEG', label: 'Âm (GND)', x: 65, y: 10 } ]
+            },
+            coin_cell: {
+                name: 'Pin Cúc Áo CR2032 3V', cat: 'power', w: 78, h: 82, props: { voltage: 3 },
+                pins: [ { id: 'POS', label: 'Dương (+3V)', x: 22, y: 74 }, { id: 'NEG', label: 'Âm (GND)', x: 56, y: 74 } ]
+            }
+        };
+
+        // ==================== HÀM VẼ ĐỒ HỌA VECTOR SVG SIÊU CHI TIẾT ====================
+        function generateDetailedSVG(type, comp = null) {
+            const props = comp ? comp.props : (PARTS[type].props || {});
+            const isLit = comp && isSimulating && comp.state.lit && !comp.state.error;
+            const isBurned = comp && isSimulating && comp.state.error && comp.state.error.type === 'BURN';
+
+            switch (type) {
+                case 'arduino_uno':
+                    const d13Glow = (isSimulating && arduinoPinStates['13'] > 0) ? '#fbbf24' : '#78350f';
+                    const pwrGlow = isSimulating ? '#22c55e' : '#14532d';
+                    return `
+                    <svg viewBox="0 0 260 185" class="w-full h-full drop-shadow-md">
+                        <!-- Bo mạch xanh cổ vịt chuẩn Arduino -->
+                        <rect x="8" y="4" width="244" height="177" rx="8" fill="#008184" stroke="#005f61" stroke-width="2.5"/>
+                        <!-- Cổng USB Type-B bạc -->
+                        <rect x="0" y="32" width="38" height="44" rx="3" fill="#cbd5e1" stroke="#64748b" stroke-width="2"/>
+                        <rect x="6" y="40" width="24" height="28" fill="#94a3b8"/>
+                        <!-- Jack nguồn DC đen -->
+                        <rect x="0" y="118" width="42" height="36" rx="3" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>
+                        <!-- Nút nhấn Reset đỏ góc trái trên -->
+                        <rect x="18" y="8" width="18" height="18" rx="3" fill="#e2e8f0" stroke="#475569"/>
+                        <circle cx="27" cy="17" r="5" fill="#ef4444"/>
+                        <!-- Hàng Header đen phía trên & dưới -->
+                        <rect x="44" y="4" width="202" height="13" fill="#0f172a"/>
+                        <rect x="56" y="168" width="188" height="13" fill="#0f172a"/>
+                        <!-- Thạch anh bạc 16MHz -->
+                        <rect x="75" y="75" width="32" height="14" rx="7" fill="#e2e8f0" stroke="#64748b" stroke-width="1.5"/>
+                        <!-- Chip cắm DIP ATmega328P 28 chân chi tiết -->
+                        <rect x="105" y="102" width="125" height="36" rx="2" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>
+                        <path d="M 105 114 A 6 6 0 0 1 105 126" fill="#334155"/>
+                        <text x="167" y="124" fill="#94a3b8" font-size="9" font-family="monospace" font-weight="bold" text-anchor="middle">ATMEGA328P-PU</text>
+                        <!-- Chữ ARDUINO UNO R3 sắc nét -->
+                        <text x="155" y="55" fill="#ffffff" font-size="16" font-weight="900" font-family="sans-serif" text-anchor="middle" letter-spacing="1">ARDUINO</text>
+                        <text x="155" y="72" fill="#a7f3d0" font-size="11" font-weight="800" font-family="sans-serif" text-anchor="middle">UNO R3</text>
+                        <!-- Đèn báo ON & L13 -->
+                        <circle cx="105" cy="44" r="4.5" fill="${d13Glow}" stroke="#fff" stroke-width="1"/>
+                        <text x="92" y="47" fill="#fff" font-size="8" font-weight="bold">L</text>
+                        <circle cx="222" cy="82" r="4.5" fill="${pwrGlow}" stroke="#fff" stroke-width="1"/>
+                        <text x="202" y="85" fill="#fff" font-size="8" font-weight="bold">ON</text>
+                        <!-- Nhãn chân in trên mạch -->
+                        <text x="150" y="27" fill="#e2e8f0" font-size="7.5" font-family="monospace">AREF GND 13 12 ~11 ~10 ~9  8   7 ~6 ~5  4 ~3  2</text>
+                        <text x="150" y="163" fill="#e2e8f0" font-size="7.5" font-family="monospace">3.3V 5V GND GND VIN   A0 A1 A2 A3 A4 A5</text>
+                    </svg>`;
+
+                case 'breadboard':
+                    return `
+                    <svg viewBox="0 0 260 140" class="w-full h-full drop-shadow-md">
+                        <rect x="2" y="2" width="256" height="136" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="2.5"/>
+                        <line x1="15" y1="24" x2="245" y2="24" stroke="#ef4444" stroke-width="2"/>
+                        <line x1="15" y1="115" x2="245" y2="115" stroke="#3b82f6" stroke-width="2"/>
+                        <rect x="10" y="65" width="240" height="8" fill="#e2e8f0" rx="2"/>
+                        <text x="130" y="72" fill="#64748b" font-size="7" font-weight="bold" text-anchor="middle">BREADBOARD 400 TIE-POINTS</text>
+                    </svg>`;
+
+                case 'led':
+                    const cMap = { red: '#ef4444', green: '#10b981', yellow: '#f59e0b', blue: '#3b82f6' };
+                    const ledColor = isBurned ? '#1e293b' : (cMap[props.color || 'red']);
+                    return `
+                    <svg viewBox="0 0 65 90" class="w-full h-full overflow-visible">
+                        <!-- 2 chân kim loại Anode (dài/gấp) và Cathode -->
+                        <line x1="21" y1="52" x2="21" y2="82" stroke="#94a3b8" stroke-width="3.5" stroke-linecap="round"/>
+                        <line x1="44" y1="52" x2="44" y2="82" stroke="#94a3b8" stroke-width="3.5" stroke-linecap="round"/>
+                        <!-- Vòm thủy tinh 5mm -->
+                        <path d="M 14 48 L 14 25 A 18 18 0 0 1 51 25 L 51 48 Z" fill="${ledColor}" fill-opacity="${isLit ? '1' : '0.65'}" stroke="${ledColor}" stroke-width="2"
+                              style="${isLit ? `filter: drop-shadow(0 0 12px ${ledColor});` : ''}"/>
+                        <rect x="11" y="47" width="43" height="6" rx="2" fill="${ledColor}"/>
+                        <!-- Phản quang bóng kính -->
+                        <path d="M 20 22 A 10 10 0 0 1 30 14" stroke="#ffffff" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.7"/>
+                        ${isBurned ? '<text x="32" y="36" font-size="16" text-anchor="middle">💥</text>' : ''}
+                        <text x="18" y="68" fill="#dc2626" font-size="9" font-weight="bold">+</text>
+                        <text x="47" y="68" fill="#1e293b" font-size="9" font-weight="bold">-</text>
+                    </svg>`;
+
+                case 'resistor':
+                    return `
+                    <svg viewBox="0 0 110 46" class="w-full h-full">
+                        <line x1="8" y1="23" x2="102" y2="23" stroke="#94a3b8" stroke-width="4"/>
+                        <!-- Thân điện trở कार्बन chuẩn Tinkercad -->
+                        <path d="M 24 12 C 30 12, 34 14, 40 14 L 70 14 C 76 14, 80 12, 86 12 C 90 12, 92 16, 92 23 C 92 30, 90 34, 86 34 C 80 34, 76 32, 70 32 L 40 32 C 34 32, 30 34, 24 34 C 20 34, 18 30, 18 23 C 18 16, 20 12, 24 12 Z" fill="#fde68a" stroke="#b45309" stroke-width="1.8"/>
+                        <!-- 4 vòng màu sắc nét -->
+                        <rect x="30" y="13" width="5" height="20" fill="#dc2626"/>
+                        <rect x="42" y="14" width="5" height="18" fill="#dc2626"/>
+                        <rect x="54" y="14" width="5" height="18" fill="#78350f"/>
+                        <rect x="72" y="13" width="5" height="20" fill="#eab308"/>
+                        <text x="55" y="10" fill="#0f172a" font-size="9" font-weight="800" text-anchor="middle">${props.resistance || 220}Ω</text>
+                    </svg>`;
+
+                case 'ultrasonic':
+                    return `
+                    <svg viewBox="0 0 155 90" class="w-full h-full drop-shadow">
+                        <rect x="4" y="4" width="147" height="68" rx="5" fill="#0284c7" stroke="#0369a1" stroke-width="2"/>
+                        <!-- 2 mắt lưới siêu âm T và R -->
+                        <circle cx="42" cy="36" r="24" fill="#cbd5e1" stroke="#64748b" stroke-width="3"/>
+                        <circle cx="42" cy="36" r="17" fill="#334155"/>
+                        <circle cx="113" cy="36" r="24" fill="#cbd5e1" stroke="#64748b" stroke-width="3"/>
+                        <circle cx="113" cy="36" r="17" fill="#334155"/>
+                        <!-- Thạch anh giữa -->
+                        <rect x="70" y="10" width="15" height="8" rx="3" fill="#e2e8f0"/>
+                        <text x="77" y="64" fill="#fff" font-size="9" font-weight="bold" text-anchor="middle">HC-SR04</text>
+                        <line x1="28" y1="72" x2="28" y2="82" stroke="#94a3b8" stroke-width="3"/>
+                        <line x1="60" y1="72" x2="60" y2="82" stroke="#94a3b8" stroke-width="3"/>
+                        <line x1="92" y1="72" x2="92" y2="82" stroke="#94a3b8" stroke-width="3"/>
+                        <line x1="124" y1="72" x2="124" y2="82" stroke="#94a3b8" stroke-width="3"/>
+                    </svg>`;
+
+                case 'lcd16x2':
+                    return `
+                    <svg viewBox="0 0 220 110" class="w-full h-full drop-shadow">
+                        <rect x="3" y="3" width="214" height="90" rx="5" fill="#15803d" stroke="#14532d" stroke-width="2"/>
+                        <rect x="14" y="12" width="192" height="62" rx="4" fill="#1e293b"/>
+                        <rect x="22" y="19" width="176" height="48" rx="2" fill="${isLit ? '#a3e635' : '#365314'}"/>
+                        <text x="30" y="38" fill="#0f172a" font-family="monospace" font-size="11" font-weight="bold">${isLit ? (props.text || lcdTitle) : 'LCD 16x2 READY'}</text>
+                        <text x="30" y="56" fill="#1e293b" font-family="monospace" font-size="10">${isLit ? 'Status: 5V OK' : ''}</text>
+                        <text x="110" y="88" fill="#dcfce7" font-size="8" font-family="monospace" text-anchor="middle">GND   VCC   RS    E    SDA   SCL</text>
+                    </svg>`;
+
+                case 'servo':
+                    const ang = isLit ? servoAngle : (props.angle || 90);
+                    return `
+                    <svg viewBox="0 0 120 100" class="w-full h-full drop-shadow">
+                        <rect x="18" y="12" width="84" height="62" rx="5" fill="#2563eb" stroke="#1d4ed8" stroke-width="2"/>
+                        <rect x="8" y="28" width="104" height="10" rx="2" fill="#1d4ed8"/>
+                        <text x="60" y="66" fill="#fff" font-size="9" font-weight="bold" text-anchor="middle">TowerPro SG90</text>
+                        <!-- Trục xoay và cánh tay Servo -->
+                        <circle cx="45" cy="36" r="16" fill="#1e293b" stroke="#fff" stroke-width="1.5"/>
+                        <g transform="rotate(${ang - 90}, 45, 36)">
+                            <rect x="39" y="6" width="12" height="46" rx="6" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
+                            <circle cx="45" cy="36" r="4" fill="#ef4444"/>
+                        </g>
+                        <!-- 3 dây nối chuẩn Cam - Đỏ - Nâu -->
+                        <line x1="28" y1="74" x2="28" y2="92" stroke="#f97316" stroke-width="4"/>
+                        <line x1="60" y1="74" x2="60" y2="92" stroke="#ef4444" stroke-width="4"/>
+                        <line x1="92" y1="74" x2="92" y2="92" stroke="#78350f" stroke-width="4"/>
+                    </svg>`;
+
+                case 'dc_motor':
+                    return `
+                    <svg viewBox="0 0 110 95" class="w-full h-full drop-shadow">
+                        <rect x="18" y="10" width="74" height="65" rx="18" fill="#facc15" stroke="#ca8a04" stroke-width="2"/>
+                        <circle cx="55" cy="42" r="22" fill="#ffffff" stroke="#475569" stroke-width="2"/>
+                        <g class="${isLit ? 'spin-anim' : ''}" style="transform-origin: 55px 42px;">
+                            <line x1="37" y1="42" x2="73" y2="42" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                            <line x1="55" y1="24" x2="55" y2="60" stroke="#2563eb" stroke-width="6" stroke-linecap="round"/>
+                        </g>
+                        <circle cx="55" cy="42" r="5" fill="#dc2626"/>
+                    </svg>`;
+
+                case 'battery9v':
+                    return `
+                    <svg viewBox="0 0 88 115" class="w-full h-full drop-shadow">
+                        <rect x="22" y="6" width="12" height="10" rx="2" fill="#94a3b8"/>
+                        <rect x="54" y="6" width="12" height="10" rx="2" fill="#94a3b8"/>
+                        <rect x="8" y="16" width="72" height="94" rx="6" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>
+                        <rect x="8" y="16" width="72" height="34" rx="4" fill="#d97706"/>
+                        <text x="44" y="38" fill="#ffffff" font-size="14" font-weight="900" text-anchor="middle">9V DC</text>
+                        <text x="44" y="75" fill="#fbbf24" font-size="10" font-weight="bold" text-anchor="middle">ALKALINE</text>
+                        <text x="28" y="29" fill="#fff" font-size="11" font-weight="bold">+</text>
+                        <text x="60" y="29" fill="#fff" font-size="11" font-weight="bold">-</text>
+                    </svg>`;
+
+                case 'seg7':
+                    const segColor = isLit ? '#ef4444' : '#334155';
+                    return `
+                    <svg viewBox="0 0 85 110" class="w-full h-full drop-shadow">
+                        <rect x="8" y="12" width="69" height="86" rx="4" fill="#0f172a" stroke="#475569" stroke-width="2"/>
+                        <!-- 7 thanh LED a-g -->
+                        <rect x="26" y="22" width="32" height="6" rx="3" fill="${segColor}"/>
+                        <rect x="56" y="26" width="6" height="26" rx="3" fill="${segColor}"/>
+                        <rect x="56" y="56" width="6" height="26" rx="3" fill="${segColor}"/>
+                        <rect x="26" y="80" width="32" height="6" rx="3" fill="${segColor}"/>
+                        <rect x="22" y="56" width="6" height="26" rx="3" fill="${segColor}"/>
+                        <rect x="22" y="26" width="6" height="26" rx="3" fill="${segColor}"/>
+                        <rect x="26" y="51" width="32" height="6" rx="3" fill="${segColor}"/>
+                        <circle cx="67" cy="84" r="3.5" fill="${segColor}"/>
+                    </svg>`;
+
+                case 'keypad':
+                    return `
+                    <svg viewBox="0 0 130 145" class="w-full h-full drop-shadow">
+                        <rect x="4" y="4" width="122" height="122" rx="6" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>
+                        ${['1','2','3','A','4','5','6','B','7','8','9','C','*','0','#','D'].map((k, idx) => {
+                            const r = Math.floor(idx / 4), c = idx % 4;
+                            const bg = ['A','B','C','D'].includes(k) ? '#dc2626' : (['*','#'].includes(k) ? '#ca8a04' : '#2563eb');
+                            return `<rect x="${12 + c*28}" y="${12 + r*28}" width="23" height="23" rx="4" fill="${bg}"/>
+                                    <text x="${23.5 + c*28}" y="${27 + r*28}" fill="#fff" font-size="11" font-weight="bold" text-anchor="middle">${k}</text>`;
+                        }).join('')}
+                    </svg>`;
+
+                default:
+                    // Vẽ bo mạch IC / Cảm biến chi tiết với đầy đủ đường mạch đồng
+                    const pInfo = PARTS[type];
+                    return `
+                    <svg viewBox="0 0 ${pInfo.w} ${pInfo.h}" class="w-full h-full drop-shadow">
+                        <rect x="4" y="6" width="${pInfo.w - 8}" height="${pInfo.h - 14}" rx="8" fill="${isLit ? '#059669' : '#1e293b'}" stroke="#64748b" stroke-width="2"/>
+                        <circle cx="${pInfo.w/2}" cy="${pInfo.h/2 - 6}" r="16" fill="#334155" stroke="#94a3b8" stroke-width="2"/>
+                        <circle cx="${pInfo.w/2}" cy="${pInfo.h/2 - 6}" r="7" fill="${isLit ? '#34d399' : '#0ea5e9'}"/>
+                        <text x="${pInfo.w/2}" y="${pInfo.h - 16}" fill="#ffffff" font-size="9.5" font-weight="800" text-anchor="middle">${pInfo.name}</text>
+                    </svg>`;
+            }
+        }
+
+        // ==================== TRẠNG THÁI HỆ THỐNG ====================
+        let components = [];
+        let wires = [];
+        let selectedId = null;     // ID linh kiện đang chọn
+        let activePin = null;      // Chân đang nối dây
+        let wireColor = '#ef4444';
+        let zoom = 1;
+        let showAllPinTags = false;
+        let tapToPlaceMode = false;
+
+        let isSimulating = false;
+        let simTimer = null;
+        let arduinoPinStates = {};
+        let loopCmds = [];
+        let loopPtr = 0;
+        let servoAngle = 90;
+        let lcdTitle = 'TinkerSVG Ready!';
+
+        // ==================== ĐIỀU KHIỂN TAB & LẤY LINH KIỆN 1 CHẠM ====================
+        function togglePartsPanel() {
+            const panel = document.getElementById('parts-panel');
+            const icon = document.getElementById('panel-arrow-icon');
+            if (panel.classList.contains('-ml-80')) {
+                panel.classList.remove('-ml-80', 'sm:-ml-88');
+                icon.className = 'fa-solid fa-chevron-left text-sm';
+            } else {
+                panel.classList.add('-ml-80', 'sm:-ml-88');
+                icon.className = 'fa-solid fa-chevron-right text-sm';
+            }
+        }
+
+        function cycleCategory(dir) {
+            catIndex = (catIndex + dir + CATEGORIES.length) % CATEGORIES.length;
+            document.getElementById('cat-title').innerText = CATEGORIES[catIndex].title;
+            renderCatalog();
+        }
+
+        function renderCatalog() {
+            const cat = CATEGORIES[catIndex].id;
+            const q = (document.getElementById('search-box').value || '').toLowerCase();
+            const grid = document.getElementById('catalog-grid');
+            let html = '';
+
+            Object.entries(PARTS).forEach(([type, info]) => {
+                if (cat !== 'all' && info.cat !== cat) return;
+                if (q && !info.name.toLowerCase().includes(q)) return;
+
+                html += `
+                    <div onclick="addPartToBoard('${type}')" 
+                         class="bg-slate-50 hover:bg-blue-50 active:scale-95 border-2 border-slate-200 hover:border-blue-500 rounded-xl p-2 flex flex-col items-center justify-between cursor-pointer transition shadow-sm">
+                        <div class="w-full h-16 flex items-center justify-center p-1 pointer-events-none">
+                            ${generateDetailedSVG(type)}
+                        </div>
+                        <div class="text-[11px] font-extrabold text-slate-800 text-center mt-1 leading-tight">${info.name}</div>
+                        <span class="mt-1 text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-full">+ Lấy ra bàn</span>
+                    </div>
+                `;
+            });
+            grid.innerHTML = html;
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast-msg');
+            document.getElementById('toast-text').innerText = msg;
+            t.classList.remove('hidden');
+            setTimeout(() => t.classList.add('hidden'), 1800);
+        }
+
+        // Bấm 1 chạm để lấy linh kiện ra bàn (Không cần kéo thả)
+        function addPartToBoard(type, customX = null, customY = null, customProps = {}) {
+            if (isSimulating) toggleSim();
+            const tpl = PARTS[type];
+            const id = 'part_' + Date.now() + '_' + Math.floor(Math.random()*999);
+            const offset = (components.length % 6) * 25;
+            const comp = {
+                id, type,
+                name: tpl.name,
+                x: customX !== null ? customX : 120 + offset,
+                y: customY !== null ? customY : 90 + offset,
+                props: Object.assign(JSON.parse(JSON.stringify(tpl.props || {})), customProps),
+                pins: JSON.parse(JSON.stringify(tpl.pins)),
+                state: { lit: false, error: null }
+            };
+            components.push(comp);
+            selectedId = id;
+            showToast(`Đã lấy "${tpl.name}"! Dùng phím mũi tên để di chuyển.`);
+            renderBoard();
+            return comp;
+        }
+
+        // ==================== DI CHUYỂN BẰNG PHÍM MŨI TÊN & CHẠM ĐẶT ====================
+        function nudgeSelected(dx, dy) {
+            if (!selectedId) return;
+            const c = components.find(x => x.id === selectedId);
+            if (c) {
+                c.x = Math.max(10, c.x + dx);
+                c.y = Math.max(10, c.y + dy);
+                renderBoard();
+            }
+        }
+
+        function enableTapToPlace() {
+            if (!selectedId) return;
+            tapToPlaceMode = true;
+            showToast('Hãy chạm vào bất kỳ vị trí nào trên bàn vẽ để đặt linh kiện!');
+        }
+
+        function onWorkspaceClick(e) {
+            if (tapToPlaceMode && selectedId) {
+                const rect = document.getElementById('board-stage').getBoundingClientRect();
+                const c = components.find(x => x.id === selectedId);
+                if (c) {
+                    const tpl = PARTS[c.type];
+                    c.x = Math.max(10, Math.round(((e.clientX - rect.left) / zoom - tpl.w/2) / 10) * 10);
+                    c.y = Math.max(10, Math.round(((e.clientY - rect.top) / zoom - tpl.h/2) / 10) * 10);
+                }
+                tapToPlaceMode = false;
+                renderBoard();
+                return;
+            }
+            activePin = null;
+            selectedId = null;
+            renderBoard();
+        }
+
+        function selectPart(e, id) {
+            e.stopPropagation();
+            if (tapToPlaceMode) return;
+            selectedId = id;
+            renderBoard();
+        }
+
+        // ==================== HIỂN THỊ BÀN MẠCH & DÂY NỐI ====================
+        function renderBoard() {
+            const container = document.getElementById('comp-container');
+            container.className = `absolute inset-0 w-full h-full z-10 ${showAllPinTags ? 'show-all-pins' : ''}`;
+
+            container.innerHTML = components.map(c => {
+                const tpl = PARTS[c.type];
+                const isSel = c.id === selectedId;
+                const pinsHTML = c.pins.map(p => {
+                    const isAct = activePin && activePin.compId === c.id && activePin.pinId === p.id;
+                    return `
+                        <div class="pin ${isAct ? 'pin-active' : ''}" 
+                             style="left: ${p.x - 6.5}px; top: ${p.y - 6.5}px;"
+                             onclick="onPinClick(event, '${c.id}', '${p.id}')">
+                            <span class="pin-tag">${p.label}</span>
+                        </div>
+                    `;
+                }).join('');
+
+                let errBadge = '';
+                if (isSimulating && c.state.error) {
+                    errBadge = `
+                        <div class="smoke-cloud" style="left: 40%; top: 0;"></div>
+                        <button onclick="showErrorDetail('${c.id}', event)"
+                                class=" absolute -top-4 -right-4 w-9 h-9 bg-red-600 text-yellow-300 border-2 border-white rounded-full shadow-xl flex items-center justify-center z-50 animate-bounce">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        </button>
+                    `;
+                }
+
+                // Nút bật/tắt trực tiếp nếu là Nút nhấn hoặc Công tắc
+                let actionBtn = '';
+                if (c.type === 'button' || c.type === 'slide_switch') {
+                    const closed = c.type === 'button' ? c.props.pressed : c.props.on;
+                    actionBtn = `
+                        <button onclick="toggleSwitch('${c.id}', event)" 
+                                class="absolute inset-4 rounded-full ${closed ? 'bg-emerald-500' : 'bg-red-600'} text-white font-extrabold text-[10px] shadow border-2 border-white z-30">
+                            ${closed ? 'ON' : 'OFF'}
+                        </button>
+                    `;
+                }
+
+                return `
+                    <div class="absolute ${isSel ? 'ring-4 ring-blue-500 rounded-xl bg-blue-50/30' : ''}"
+                         style="left: ${c.x}px; top: ${c.y}px; width: ${tpl.w}px; height: ${tpl.h}px;"
+                         onclick="selectPart(event, '${c.id}')">
+                        ${generateDetailedSVG(c.type, c)}
+                        ${actionBtn}
+                        ${pinsHTML}
+                        ${errBadge}
+                    </div>
+                `;
+            }).join('');
+
+            renderWires();
+            updateMovePad();
+        }
+
+        function updateMovePad() {
+            const pad = document.getElementById('move-pad');
+            if (!selectedId) {
+                pad.classList.add('hidden');
+                return;
+            }
+            const c = components.find(x => x.id === selectedId);
+            if (!c) return;
+
+            pad.classList.remove('hidden');
+            document.getElementById('sel-comp-name').innerText = c.name;
+            const propBox = document.getElementById('sel-comp-props');
+
+            if (c.type === 'resistor' || c.type === 'potentiometer') {
+                propBox.innerHTML = `
+                    <div class="flex items-center space-x-1">
+                        <span class="text-[10px] font-bold">Trở (Ω):</span>
+                        <input type="number" value="${c.props.resistance}" onchange="setCompProp('${c.id}', 'resistance', Number(this.value))"
+                               class="w-16 border border-slate-300 rounded px-1 py-0.5 text-xs font-bold">
+                    </div>`;
+            } else if (c.type === 'led') {
+                propBox.innerHTML = `
+                    <select onchange="setCompProp('${c.id}', 'color', this.value)" class="w-full border border-slate-300 rounded px-1 py-0.5 text-xs font-bold">
+                        <option value="red" ${c.props.color==='red'?'selected':''}>Màu: Đỏ</option>
+                        <option value="green" ${c.props.color==='green'?'selected':''}>Màu: Xanh lá</option>
+                        <option value="yellow" ${c.props.color==='yellow'?'selected':''}>Màu: Vàng</option>
+                        <option value="blue" ${c.props.color==='blue'?'selected':''}>Màu: Xanh dương</option>
+                    </select>`;
+            } else {
+                propBox.innerHTML = `<span class="text-[10px] text-slate-500">Chạm chân đen để nối dây</span>`;
+            }
+        }
+
+        function setCompProp(id, k, v) {
+            const c = components.find(x => x.id === id);
+            if (c) { c.props[k] = v; if (isSimulating) evaluateCircuit(); renderBoard(); }
+        }
+
+        function toggleSwitch(id, e) {
+            e.stopPropagation();
+            const c = components.find(x => x.id === id);
+            if (!c) return;
+            if (c.type === 'button') c.props.pressed = !c.props.pressed;
+            if (c.type === 'slide_switch') c.props.on = !c.props.on;
+            if (isSimulating) evaluateCircuit();
+            renderBoard();
+        }
+
+        // ==================== NỐI DÂY GIỮA CÁC CHÂN ====================
+        function onPinClick(e, compId, pinId) {
+            e.stopPropagation();
+            if (!activePin) {
+                activePin = { compId, pinId };
+                showToast('Chạm vào chân thứ 2 để nối dây!');
+                renderBoard();
+            } else {
+                if (activePin.compId !== compId || activePin.pinId !== pinId) {
+                    wires.push({
+                        id: 'w_' + Date.now(),
+                        fromComp: activePin.compId, fromPin: activePin.pinId,
+                        toComp: compId, toPin: pinId,
+                        color: wireColor
+                    });
+                    if (isSimulating) evaluateCircuit();
+                }
+                activePin = null;
+                renderBoard();
+            }
+        }
+
+        function getAbsPinPos(compId, pinId) {
+            const c = components.find(x => x.id === compId);
+            if (!c) return { x: 0, y: 0 };
+            const p = c.pins.find(x => x.id === pinId);
+            return p ? { x: c.x + p.x, y: c.y + p.y } : { x: 0, y: 0 };
+        }
+
+        function renderWires() {
+            const svg = document.getElementById('wire-svg');
+            svg.innerHTML = wires.map(w => {
+                const p1 = getAbsPinPos(w.fromComp, w.fromPin);
+                const p2 = getAbsPinPos(w.toComp, w.toPin);
+                const cy = Math.max(p1.y, p2.y) + 28;
+                const d = `M ${p1.x} ${p1.y} Q ${(p1.x+p2.x)/2} ${cy} ${p2.x} ${p2.y}`;
+                return `<path d="${d}" stroke="${w.color}" stroke-width="4.5" fill="none" stroke-linecap="round"
+                              class="pointer-events-auto cursor-pointer hover:opacity-70"
+                              onclick="deleteWire(event, '${w.id}')" title="Chạm để xóa dây"/>`;
+            }).join('');
+        }
+
+        function deleteWire(e, id) {
+            e.stopPropagation();
+            wires = wires.filter(w => w.id !== id);
+            if (isSimulating) evaluateCircuit();
+            renderBoard();
+        }
+
+        // ==================== KIỂM TRA VẬT LÝ & CHÁY NỔ ====================
+        function evaluateCircuit() {
+            components.forEach(c => { c.state.lit = false; c.state.error = null; });
+            const adj = {};
+            const addLink = (u, v, type = 'wire', comp = null) => {
+                if (!adj[u]) adj[u] = [];
+                if (!adj[v]) adj[v] = [];
+                adj[u].push({ to: v, type, comp });
+                adj[v].push({ to: u, type, comp });
+            };
+
+            wires.forEach(w => addLink(`${w.fromComp}:${w.fromPin}`, `${w.toComp}:${w.toPin}`));
+
+            components.forEach(c => {
+                if (c.type === 'breadboard') {
+                    const groups = {};
+                    c.pins.forEach(p => { if (!groups[p.g]) groups[p.g] = []; groups[p.g].push(`${c.id}:${p.id}`); });
+                    Object.values(groups).forEach(arr => {
+                        for (let i=0; i<arr.length; i++)
+                            for (let j=i+1; j<arr.length; j++) addLink(arr[i], arr[j]);
+                    });
+                }
+                else if (c.type === 'button' && c.props.pressed) addLink(`${c.id}:1A`, `${c.id}:2A`);
+                else if (c.type === 'slide_switch' && c.props.on) addLink(`${c.id}:1A`, `${c.id}:2A`);
+                else if (c.type === 'resistor' || c.type === 'ldr') addLink(`${c.id}:T1`, `${c.id}:T2`, 'resistor', c);
+                else if (c.type === 'potentiometer') addLink(`${c.id}:T1`, `${c.id}:W`, 'resistor', c);
+                else if (['led', 'buzzer', 'capacitor', 'diode'].includes(c.type)) addLink(`${c.id}:A`, `${c.id}:C`, 'load', c);
+                else if (c.type === 'dc_motor') addLink(`${c.id}:T1`, `${c.id}:T2`, 'load', c);
+                else {
+                    const vcc = c.pins.find(p => p.id === 'VCC' || p.id === 'SIG' || p.id === 'A');
+                    const gnd = c.pins.find(p => p.id === 'GND' || p.id === 'C');
+                    if (vcc && gnd) addLink(`${c.id}:${vcc.id}`, `${c.id}:${gnd.id}`, 'load', c);
+                }
+            });
+
+            const sources = [];
+            const grounds = new Set();
+
+            components.forEach(c => {
+                if (['arduino_uno', 'arduino_nano', 'esp32'].includes(c.type)) {
+                    ['GND1','GND2','GND3'].forEach(g => grounds.add(`${c.id}:${g}`));
+                    sources.push({ node: `${c.id}:5V`, v: 5, comp: c, label: 'Chân 5V ' + c.name });
+                    sources.push({ node: `${c.id}:3V3`, v: 3.3, comp: c, label: 'Chân 3.3V ' + c.name });
+                    ['13','12','11','10','9','8','7','6','5','4','3','2'].forEach(p => {
+                        if (arduinoPinStates[p] > 0) sources.push({ node: `${c.id}:${p}`, v: 5, comp: c, label: `Chân D${p}` });
+                    });
+                } else if (['battery9v', 'battery_aa', 'coin_cell'].includes(c.type)) {
+                    sources.push({ node: `${c.id}:POS`, v: c.props.voltage, comp: c, label: c.name });
+                    grounds.add(`${c.id}:NEG`);
+                }
+            });
+
+            sources.forEach(src => {
+                const q = [{ curr: src.node, vis: new Set([src.node]), res: [], loads: [] }];
+                while (q.length > 0) {
+                    const p = q.shift();
+                    if (grounds.has(p.curr)) {
+                        const totalR = p.res.reduce((s, r) => s + (r.props.resistance || 0), 0);
+                        if (totalR === 0 && p.loads.length === 0) {
+                            src.comp.state.error = {
+                                type: 'SHORT',
+                                title: 'CHẬP MẠCH NGUỒN (SHORT CIRCUIT)!',
+                                desc: `${src.label} (${src.v}V) đang nối trực tiếp vào GND không qua tải, gây đoản mạch cháy bo!`,
+                                fix: 'Xóa sợi dây nối tắt giữa nguồn Dương và GND.'
+                            };
+                        }
+                        p.loads.forEach(ld => {
+                            if (ld.type === 'led' && totalR === 0 && src.v >= 4.5) {
+                                ld.state.error = {
+                                    type: 'BURN',
+                                    title: 'CHÁY ĐÈN LED DO QUÁ DÒNG!',
+                                    desc: `Đèn LED nối trực tiếp vào ${src.v}V không có điện trở hạn dòng khiến dòng vọt lên >200mA (vượt mức tối đa 20mA).`,
+                                    fix: 'Mắc nối tiếp một Điện trở 220Ω - 1000Ω với đèn LED.'
+                                };
+                            } else {
+                                ld.state.lit = true;
+                            }
+                        });
+                        continue;
+                    }
+                    (adj[p.curr] || []).forEach(e => {
+                        if (!p.vis.has(e.to)) {
+                            const nv = new Set(p.vis); nv.add(e.to);
+                            const nr = [...p.res]; const nl = [...p.loads];
+                            if (e.type === 'resistor') nr.push(e.comp);
+                            if (e.type === 'load') nl.push(e.comp);
+                            q.push({ curr: e.to, vis: nv, res: nr, loads: nl });
+                        }
+                    });
+                }
+            });
+
+            renderBoard();
+        }
+
+        // ==================== CHẠY MÔ PHỎNG & TIỆN ÍCH ====================
+        function toggleSim() {
+            isSimulating = !isSimulating;
+            const btn = document.getElementById('btn-sim');
+            const icon = document.getElementById('sim-icon');
+            const txt = document.getElementById('sim-text');
+
+            if (isSimulating) {
+                btn.classList.replace('bg-emerald-600', 'bg-red-600');
+                icon.className = 'fa-solid fa-stop';
+                txt.innerText = 'Dừng';
+                compileArduino();
+                evaluateCircuit();
+                runArduinoLoop();
+            } else {
+                btn.classList.replace('bg-red-600', 'bg-emerald-600');
+                icon.className = 'fa-solid fa-play';
+                txt.innerText = 'Chạy';
+                clearTimeout(simTimer);
+                components.forEach(c => { c.state.lit = false; c.state.error = null; });
+                renderBoard();
+            }
+        }
+
+        function compileArduino() {
+            const code = document.getElementById('code-editor').value;
+            arduinoPinStates = { '13': 0 };
+            loopCmds = [];
+            const lcdM = code.match(/lcd\.print\s*\(\s*"([^"]*)"\s*\)/);
+            if (lcdM) lcdTitle = lcdM[1];
+
+            code.split('\n').forEach(l => {
+                let dw = l.match(/digitalWrite\s*\(\s*(\d+)\s*,\s*(HIGH\vert{}LOW)\s*\)/);
+                if (dw) loopCmds.push({ t: 'dw', pin: dw[1], v: dw[2] === 'HIGH' ? 5 : 0 });
+                let sv = l.match(/servo\.write\s*\(\s*(\d+)\s*\)/);
+                if (sv) loopCmds.push({ t: 'sv', ang: parseInt(sv[1]) });
+                let sp = l.match(/Serial\.println\s*\(\s*"([^"]*)"\s*\)/);
+                if (sp) loopCmds.push({ t: 'sp', msg: sp[1] });
+                let dl = l.match(/delay\s*\(\s*(\d+)\s*\)/);
+                if (dl) loopCmds.push({ t: 'dl', ms: parseInt(dl[1]) });
+            });
+        }
+
+        function runArduinoLoop() {
+            loopPtr = 0;
+            const step = () => {
+                if (!isSimulating || loopCmds.length === 0) return;
+                const cmd = loopCmds[loopPtr];
+                loopPtr = (loopPtr + 1) % loopCmds.length;
+                if (cmd.t === 'dw') { arduinoPinStates[cmd.pin] = cmd.v; evaluateCircuit(); simTimer = setTimeout(step, 30); }
+                else if (cmd.t === 'sv') { servoAngle = cmd.ang; renderBoard(); simTimer = setTimeout(step, 30); }
+                else if (cmd.t === 'sp') {
+                    const box = document.getElementById('serial-box');
+                    box.innerHTML += `<div>&gt; ${cmd.msg}</div>`;
+                    box.scrollTop = box.scrollHeight;
+                    simTimer = setTimeout(step, 30);
+                }
+                else if (cmd.t === 'dl') { simTimer = setTimeout(step, cmd.ms); }
+            };
+            step();
+        }
+
+        function showErrorDetail(id, e) {
+            e.stopPropagation();
+            const c = components.find(x => x.id === id);
+            if (!c || !c.state.error) return;
+            document.getElementById('err-title').innerText = c.state.error.title;
+            document.getElementById('err-desc').innerText = c.state.error.desc;
+            document.getElementById('err-fix').innerText = c.state.error.fix;
+            document.getElementById('err-modal').classList.remove('hidden');
+        }
+
+        function togglePinLabels() {
+            showAllPinTags = !showAllPinTags;
+            renderBoard();
+        }
+
+        function rotateSelected() {
+            if (!selectedId) return;
+            const c = components.find(x => x.id === selectedId);
+            if (c) { c.pins.forEach(p => { const t = p.x; p.x = p.y; p.y = t; }); renderBoard(); }
+        }
+
+        function deleteSelected() {
+            if (!selectedId) return;
+            components = components.filter(c => c.id !== selectedId);
+            wires = wires.filter(w => w.fromComp !== selectedId && w.toComp !== selectedId);
+            selectedId = null;
+            renderBoard();
+        }
+
+        function setWireColor(c) {
+            wireColor = c;
+            document.querySelectorAll('.swatch').forEach(b => {
+                b.className = `w-4 h-4 rounded-full swatch ${b.dataset.c === c ? 'ring-2 ring-blue-600 scale-125' : ''}`;
+                b.style.backgroundColor = b.dataset.c;
+            });
+        }
+
+        function setZoom(d) {
+            zoom = Math.min(1.5, Math.max(0.5, +(zoom + d).toFixed(2)));
+            document.getElementById('board-stage').style.transform = `scale(${zoom})`;
+            document.getElementById('zoom-val').innerText = Math.round(zoom * 100) + '%';
+        }
+
+        function toggleCodeDrawer() {
+            const d = document.getElementById('code-drawer');
+            d.classList.toggle('hidden');
+            d.classList.toggle('flex');
+        }
+
+        function loadPreset(p) {
+            if (isSimulating) toggleSim();
+            components = []; wires = []; selectedId = null;
+            const ard = addPartToBoard('arduino_uno', 40, 80);
+
+            if (p === 'safe') {
+                const res = addPartToBoard('resistor', 340, 65, { resistance: 220 });
+                const led = addPartToBoard('led', 480, 40, { color: 'red' });
+                wires.push(
+                    { id: 'w1', fromComp: ard.id, fromPin: '13', toComp: res.id, toPin: 'T1', color: '#10b981' },
+                    { id: 'w2', fromComp: res.id, fromPin: 'T2', toComp: led.id, toPin: 'A', color: '#ef4444' },
+                    { id: 'w3', fromComp: led.id, fromPin: 'C', toComp: ard.id, toPin: 'GND1', color: '#0f172a' }
+                );
+            } else if (p === 'burn') {
+                const led = addPartToBoard('led', 360, 50, { color: 'red' });
+                wires.push(
+                    { id: 'w1', fromComp: ard.id, fromPin: '13', toComp: led.id, toPin: 'A', color: '#ef4444' },
+                    { id: 'w2', fromComp: led.id, fromPin: 'C', toComp: ard.id, toPin: 'GND1', color: '#0f172a' }
+                );
+            } else if (p === 'short') {
+                wires.push({ id: 'w1', fromComp: ard.id, fromPin: '5V', toComp: ard.id, toPin: 'GND2', color: '#ef4444' });
+            } else if (p === 'full') {
+                const lcd = addPartToBoard('lcd16x2', 340, 40);
+                const sr = addPartToBoard('ultrasonic', 340, 180);
+                const sv = addPartToBoard('servo', 530, 175);
+                wires.push(
+                    { id: 'w1', fromComp: ard.id, fromPin: '5V', toComp: lcd.id, toPin: 'VCC', color: '#ef4444' },
+                    { id: 'w2', fromComp: ard.id, fromPin: 'GND2', toComp: lcd.id, toPin: 'GND', color: '#0f172a' },
+                    { id: 'w3', fromComp: ard.id, fromPin: '5V', toComp: sr.id, toPin: 'VCC', color: '#ef4444' },
+                    { id: 'w4', fromComp: ard.id, fromPin: 'GND3', toComp: sr.id, toPin: 'GND', color: '#0f172a' },
+                    { id: 'w5', fromComp: ard.id, fromPin: '13', toComp: sv.id, toPin: 'SIG', color: '#f59e0b' },
+                    { id: 'w6', fromComp: ard.id, fromPin: 'GND1', toComp: sv.id, toPin: 'GND', color: '#0f172a' }
+                );
+            }
+            selectedId = null;
+            renderBoard();
+        }
+
+        window.onload = () => {
+            renderCatalog();
+            loadPreset('safe');
+        };
+    </script>
+</body>
+</html>
